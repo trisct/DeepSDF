@@ -342,6 +342,7 @@ def main_function(experiment_directory, continue_from, batch_split):
     sdf_dataset = deep_sdf.data.SDFSamples(
         data_source, train_split, num_samp_per_scene, load_ram=False
     )
+    print('[HERE: In train_deep_sdf.main_function] sdf_dataset len =', len(sdf_dataset))
 
     num_data_loader_threads = get_spec_with_default(specs, "DataLoaderThreads", 1)
     logging.debug("loading data with {} threads".format(num_data_loader_threads))
@@ -353,6 +354,7 @@ def main_function(experiment_directory, continue_from, batch_split):
         num_workers=num_data_loader_threads,
         drop_last=True,
     )
+    print('[HERE: In train_deep_sdf.main_function] sdf_loader len =', len(sdf_loader))
 
     logging.debug("torch num_threads: {}".format(torch.get_num_threads()))
 
@@ -450,6 +452,7 @@ def main_function(experiment_directory, continue_from, batch_split):
     )
 
     for epoch in range(start_epoch, num_epochs + 1):
+        print('[HERE: In train_deep_sdf] epoch = %d'%epoch)
 
         start = time.time()
 
@@ -460,6 +463,7 @@ def main_function(experiment_directory, continue_from, batch_split):
         adjust_learning_rate(lr_schedules, optimizer_all, epoch)
 
         for sdf_data, indices in sdf_loader:
+            #print('[HERE: In train_deep_sdf.LOOPsdf_loader] indices =', indices)
 
             # Process the input data
             sdf_data = sdf_data.reshape(-1, 4)
@@ -487,6 +491,7 @@ def main_function(experiment_directory, continue_from, batch_split):
             optimizer_all.zero_grad()
 
             for i in range(batch_split):
+                #print('[HERE: In train_deep_sdf.LOOPbatch_split] i/batch_split = %d/%d'%(i, batch_split))
 
                 batch_vecs = lat_vecs(indices[i])
 
@@ -513,6 +518,7 @@ def main_function(experiment_directory, continue_from, batch_split):
                 batch_loss += chunk_loss.item()
 
             logging.debug("loss = {}".format(batch_loss))
+            logging.info("loss = {}".format(batch_loss))
 
             loss_log.append(batch_loss)
 
@@ -523,6 +529,7 @@ def main_function(experiment_directory, continue_from, batch_split):
             optimizer_all.step()
 
         end = time.time()
+        
 
         seconds_elapsed = end - start
         timing_log.append(seconds_elapsed)
