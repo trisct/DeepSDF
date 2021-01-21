@@ -452,7 +452,6 @@ def main_function(experiment_directory, continue_from, batch_split):
     )
 
     for epoch in range(start_epoch, num_epochs + 1):
-        print('[HERE: In train_deep_sdf] epoch = %d'%epoch)
 
         start = time.time()
 

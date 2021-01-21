@@ -2,6 +2,7 @@
 # Copyright 2004-present Facebook. All Rights Reserved.
 
 import argparse
+from tqdm import tqdm
 import concurrent.futures
 import json
 import logging
@@ -49,7 +50,7 @@ def process_mesh(mesh_filepath, target_filepath, executable, additional_args):
     logging.info(mesh_filepath + " --> " + target_filepath)
     command = [executable, "-m", mesh_filepath, "-o", target_filepath] + additional_args
 
-    subproc = subprocess.Popen(command, stdout=subprocess.DEVNULL)
+    subproc = subprocess.Popen(command, stdout=None)
     subproc.wait()
 
 
@@ -249,21 +250,9 @@ if __name__ == "__main__":
             except deep_sdf.data.MultipleMeshFileError:
                 logging.warning("Multiple meshes found for instance " + instance_dir)
 
-    with concurrent.futures.ThreadPoolExecutor(
-        max_workers=int(args.num_threads)
-    ) as executor:
-
-        for (
-            mesh_filepath,
-            target_filepath,
-            specific_args,
-        ) in meshes_targets_and_specific_args:
-            executor.submit(
-                process_mesh,
-                mesh_filepath,
-                target_filepath,
-                executable,
-                specific_args + additional_general_args,
-            )
+    with concurrent.futures.ThreadPoolExecutor(max_workers=int(args.num_threads)) as executor:
+        for task_count, (mesh_filepath, target_filepath, specific_args,) in enumerate(meshes_targets_and_specific_args):
+            executor.submit(process_mesh, mesh_filepath, target_filepath, executable, specific_args + additional_general_args,)
+            print('Submitted task %d: %s' % (task_count, mesh_filepath))
 
         executor.shutdown()

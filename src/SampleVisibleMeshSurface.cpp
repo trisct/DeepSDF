@@ -160,9 +160,14 @@ int main(int argc, char** argv) {
   glPixelStorei(GL_UNPACK_SKIP_PIXELS, 0);
   glPixelStorei(GL_UNPACK_SKIP_ROWS, 0);
 
-  pangolin::Geometry geom = pangolin::LoadGeometry(meshFileName);
+  std::cout << "[HERE: In SampleVisibleMeshSurface, with mesh " << meshFileName << "] Starting...\n";
 
-  std::cout << geom.objects.size() << " objects" << std::endl;
+  std::cout << "[HERE: In SampleVisibleMeshSurface, with mesh " << meshFileName << "] Start loading mesh...\n";
+  pangolin::Geometry geom = pangolin::LoadGeometry(meshFileName);
+  std::cout << "[HERE: In SampleVisibleMeshSurface, with mesh " << meshFileName << "] Done loading mesh.\n";
+
+  
+  std::cout << "[HERE: In SampleVisibleMeshSurface, with mesh " << meshFileName << "] " << geom.objects.size() << " objects" << std::endl;
 
   // linearize the object indices
   {
@@ -303,22 +308,34 @@ int main(int argc, char** argv) {
     normals2.push_back(point_normals[v].head<3>());
   }
 
+  std::cout << "[HERE: In SampleVisibleMeshSurface, with mesh " << meshFileName << "] Start building KDTree...\n";
   KdVertexList kdVerts(vertices2);
   KdVertexListTree kdTree_surf(3, kdVerts);
   kdTree_surf.buildIndex();
+  std::cout << "[HERE: In SampleVisibleMeshSurface, with mesh " << meshFileName << "] Done building KDTree.\n";
 
+  std::cout << "[HERE: In SampleVisibleMeshSurface, with mesh " << meshFileName << "] SampleFromSurfaceInside starts...\n";
   std::vector<Eigen::Vector3f> surf_pts;
   SampleFromSurfaceInside(geom, surf_pts, num_sample, kdTree_surf, vertices2, normals2, 0.00001);
-  SavePointsToPLY(surf_pts, plyOutFile);
+  std::cout << "[HERE: In SampleVisibleMeshSurface, with mesh " << meshFileName << "] SampleFromSurfaceInside done.\n";
 
+  std::cout << "[HERE: In SampleVisibleMeshSurface, with mesh " << meshFileName << "] Saving to ply file...\n";
+  SavePointsToPLY(surf_pts, plyOutFile);
+  std::cout << "[HERE: In SampleVisibleMeshSurface, with mesh " << meshFileName << "] Done saving to ply file.\n";
+
+  
   if (!normalizationOutputFile.empty()) {
+    std::cout << "[HERE: In SampleVisibleMeshSurface, with mesh " << meshFileName << "] Starting normalization...\n";
     const std::pair<Eigen::Vector3f, float> normalizationParams =
         ComputeNormalizationParameters(geom);
+    std::cout << "[HERE: In SampleVisibleMeshSurface, with mesh " << meshFileName << "] Done normalization.\n";
 
+    std::cout << "[HERE: In SampleVisibleMeshSurface, with mesh " << meshFileName << "] Saving normalization to npz file...\n";
     SaveNormalizationParamsToNPZ(
         normalizationParams.first, normalizationParams.second, normalizationOutputFile);
+    std::cout << "[HERE: In SampleVisibleMeshSurface, with mesh " << meshFileName << "] Done saving normalization to npz file.\n";
   }
 
-  std::cout << "ended correctly" << std::endl;
+  std::cout << "[HERE: In SampleVisibleMeshSurface, with mesh " << meshFileName << "] Ended correctly.\n";
   return 0;
 }

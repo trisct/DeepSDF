@@ -310,26 +310,32 @@ int main(int argc, char** argv) {
   if (test_flag)
     variance = 0.05;
 
+  std::cout<< "[HERE: In PreprocessMesh.cpp, with mesh " << meshFileName << "] Starting...\n";
+  
   float second_variance = variance / 10;
-  std::cout << "variance: " << variance << " second: " << second_variance << std::endl;
+  std::cout << "[HERE: In PreprocessMesh.cpp, with mesh " << meshFileName << "] variance: " << variance << " second: " << second_variance << std::endl;
   if (test_flag) {
     second_variance = variance / 100;
     num_samp_near_surf_ratio = 45.0f / 50.0f;
     num_sample = 250000;
   }
 
-  std::cout << spatial_samples_npz << std::endl;
+  std::cout << "[HERE: In PreprocessMesh.cpp, with mesh " << meshFileName << "] spatial_samples_npz" << spatial_samples_npz << std::endl;
 
   glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
   glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
   glPixelStorei(GL_UNPACK_SKIP_PIXELS, 0);
   glPixelStorei(GL_UNPACK_SKIP_ROWS, 0);
 
-  pangolin::Geometry geom = pangolin::LoadGeometry(meshFileName);
 
-  std::cout << geom.objects.size() << " objects" << std::endl;
+  std::cout << "[HERE: In PreprocessMesh.cpp, with mesh " << meshFileName << "] Loading mesh with Pangolin...\n";
+  pangolin::Geometry geom = pangolin::LoadGeometry(meshFileName);
+  std::cout << "[HERE: In PreprocessMesh.cpp, with mesh " << meshFileName << "] Done loading mesh with Pangolin...\n";
+
+  std::cout << "[HERE: In PreprocessMesh.cpp, with mesh " << meshFileName << "] " << geom.objects.size() << " objects" << std::endl;
 
   // linearize the object indices
+  std::cout << "[HERE: In PreprocessMesh.cpp, with mesh " << meshFileName << "] Starting to linearize object indices...\n"; 
   {
     int total_num_faces = 0;
 
@@ -374,9 +380,12 @@ int main(int argc, char** argv) {
     new_ibo = faces->second.UnsafeReinterpret<uint32_t>().SubImage(0, 0, 3, total_num_faces);
     faces->second.attributes["vertex_indices"] = new_ibo;
   }
+  std::cout << "[HERE: In PreprocessMesh.cpp, with mesh " << meshFileName << "] Linearizing indices done.\n"; 
 
   // remove textures
+  std::cout << "[HERE: In PreprocessMesh.cpp, with mesh " << meshFileName << "] Starting to remove textures...\n"; 
   geom.textures.clear();
+  std::cout << "[HERE: In PreprocessMesh.cpp, with mesh " << meshFileName << "] Removing textures done.\n"; 
 
   pangolin::Image<uint32_t> modelFaces = pangolin::get<pangolin::Image<uint32_t>>(
       geom.objects.begin()->second.attributes["vertex_indices"]);
@@ -507,7 +516,7 @@ int main(int argc, char** argv) {
   float bad_tri_ratio = (float)(bad_tri) / float(num_tri);
 
   if (wrong_ratio > rejection_criteria_obs || bad_tri_ratio > rejection_criteria_tri) {
-    std::cout << "mesh rejected" << std::endl;
+    std::cout << "[HERE: In PreprocessMesh.cpp, with mesh " << meshFileName << "] " << "mesh rejected for too many wrong faces" << std::endl;
     //    return 0;
   }
 
@@ -528,9 +537,10 @@ int main(int argc, char** argv) {
   std::vector<Eigen::Vector3f> xyz_surf;
   std::vector<float> sdf;
   int num_samp_near_surf = (int)(47 * num_sample / 50);
-  std::cout << "num_samp_near_surf: " << num_samp_near_surf << std::endl;
+  std::cout << "[HERE: In PreprocessMesh.cpp, with mesh " << meshFileName << "] " << "num_samp_near_surf: " << num_samp_near_surf << std::endl;
   SampleFromSurface(geom, xyz_surf, num_samp_near_surf / 2);
 
+  std::cout << "[HERE: In PreprocessMesh.cpp, with mesh " << meshFileName << "] SampleSDFNearSurface starts...\n"; 
   auto start = std::chrono::high_resolution_clock::now();
   SampleSDFNearSurface(
       kdTree_surf,
@@ -547,19 +557,24 @@ int main(int argc, char** argv) {
 
   auto finish = std::chrono::high_resolution_clock::now();
   auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(finish - start).count();
-  std::cout << elapsed << std::endl;
+  std::cout << "[HERE: In PreprocessMesh.cpp, with mesh " << meshFileName << "] SampleSDFNearSurface ends with elapsed time: " << elapsed << std::endl;
 
+  std::cout << "[HERE: In PreprocessMesh.cpp, with mesh " << meshFileName << "] Writing to ply file...\n"; 
   if (save_ply) {
     writeSDFToPLY(xyz, sdf, plyFileNameOut, false, true);
   }
 
-  std::cout << "num points sampled: " << xyz.size() << std::endl;
+  std::cout << "[HERE: In PreprocessMesh.cpp, with mesh " << meshFileName << "] Writing to ply done.\n"; 
+  std::cout << "[HERE: In PreprocessMesh.cpp, with mesh " << meshFileName << "] " << "num points sampled: " << xyz.size() << std::endl;
   std::size_t save_npz = npyFileName.find("npz");
+
+  std::cout << "[HERE: In PreprocessMesh.cpp, with mesh " << meshFileName << "] Writing to npz file...\n"; 
   if (save_npz == std::string::npos)
     writeSDFToNPY(xyz, sdf, npyFileName);
   else {
     writeSDFToNPZ(xyz, sdf, npyFileName, true);
   }
+  std::cout << "[HERE: In PreprocessMesh.cpp, with mesh " << meshFileName << "] Writing to npz file done.\n"; 
 
   return 0;
 }
