@@ -81,12 +81,18 @@ class Decoder(nn.Module):
         else:
             x = input
 
+        print('[HERE: In networks.deef_sdf_decoder.Decoder.forward] Passing through decoder...')
         for layer in range(0, self.num_layers - 1):
             lin = getattr(self, "lin" + str(layer))
+            print('[HERE: In networks.deef_sdf_decoder.Decoder.forward] | At layer %d: it is' % layer, lin)
             if layer in self.latent_in:
+                print('[HERE: In networks.deef_sdf_decoder.Decoder.forward] | | latent_in specified here. Feature shape is (before concat)', x.shape)
                 x = torch.cat([x, input], 1)
+                print('[HERE: In networks.deef_sdf_decoder.Decoder.forward] | | latent_in specified here. Feature shape is (after concat)', x.shape)
             elif layer != 0 and self.xyz_in_all:
+                print('[HERE: In networks.deef_sdf_decoder.Decoder.forward] | | xyz_in_all specified here. Feature shape is (before concat)', x.shape)
                 x = torch.cat([x, xyz], 1)
+                print('[HERE: In networks.deef_sdf_decoder.Decoder.forward] | | xyz_in_all specified here. Feature shape is (before concat)', x.shape)
             x = lin(x)
             # last layer Tanh
             if layer == self.num_layers - 2 and self.use_tanh:
