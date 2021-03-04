@@ -19,15 +19,23 @@ class Decoder(nn.Module):
         latent_in=(),
         weight_norm=False,
         xyz_in_all=None,
+        use_tanh=False,
+        latent_dropout=False
     ):
         super(Decoder, self).__init__()
 
         def make_sequence():
             return []
+        
+        print(f'[HERE: In networks.deef_sdf_decoder.Decoder] Initializing decoder...')
 
-        dims = [latent_size + 3] + dims + [1]
-
+        dims = [latent_size + 3] + dims + [1] # [259, 512, ..., 512, 1], 10 in total
         self.num_layers = len(dims)
+
+        print(f'[HERE: In networks.deef_sdf_decoder.Decoder] | dims = {dims}')
+        print(f'[HERE: In networks.deef_sdf_decoder.Decoder] | num_layers = {self.num_layers}')
+        # but in all below, layers go from 0 to num_layers-1 
+        
         self.norm_layers = norm_layers
         self.latent_in = latent_in
         
@@ -38,9 +46,7 @@ class Decoder(nn.Module):
                 out_dim = dims[layer + 1] - dims[0]
             else:
                 out_dim = dims[layer + 1]
-                if self.xyz_in_all and layer != self.num_layers - 2:
-                    out_dim -= 3
-
+                
             if weight_norm and layer in self.norm_layers:
                 setattr(
                     self,
@@ -65,29 +71,59 @@ class Decoder(nn.Module):
 
     # input: N x (L+3)
     def forward(self, input):
+        # input: [65536, 259].
+        # 65536 = 4 * 16384 = ScenesPerBatch * SamplePerScene
+        # 259 = 256 + 3 = latent + xyz
+
         xyz = input[:, -3:]
-
         x = input
+        
+        print(f'[HERE: In networks.deef_sdf_decoder.Decoder.forward] Entering decoder...')
+        print(f'[HERE: In networks.deef_sdf_decoder.Decoder.forward] | input shape = {input.shape}...')
 
-        print('[HERE: In networks.deef_sdf_decoder.Decoder.forward] Passing through decoder...')
-        for layer in range(0, self.num_layers - 1):
-            lin = getattr(self, "lin" + str(layer))
-            print(f'[HERE: In networks.deef_sdf_decoder.Decoder.forward] | At layer {layer}: Got lin_layer: {lin}')
-            
-            if layer in self.latent_in:
-                print(f'[HERE: In networks.deef_sdf_decoder.Decoder.forward] | | latent_in specified here. Feature shape is (before concat) = {x.shape}')
-                x = torch.cat([x, input], 1)
-                print(f'[HERE: In networks.deef_sdf_decoder.Decoder.forward] | | latent_in specified here. Feature shape is (after concat) = {x.shape}')
-            
-            x = lin(x)
+        # 9 layers in total: 0~8
+        # - latent_in is for layer 4
+        # - relu is for layer 0~7
 
-            if layer < self.num_layers - 2:
-                print(f'[HERE: In networks.deef_sdf_decoder.Decoder.forward] | | Applying relu here. Feature shape is = {x.shape}')
-                x = self.relu(x)
+        # layer 0
+        x = self.lin0(x)
+        x = self.relu(x)
 
-        print(f'[HERE: In networks.deef_sdf_decoder.Decoder.forward] All layers passed.')
-        if hasattr(self, "th"):
-            print(f'[HERE: In networks.deef_sdf_decoder.Decoder.forward] decoder has "th" attribute. Applying tanh')
-            x = self.th(x)
+        # layer 1
+        x = self.lin1(x)
+        x = self.relu(x)
+
+        # layer 2
+        x = self.lin2(x)
+        x = self.relu(x)
+
+        # layer 3
+        x = self.lin3(x)
+        x = self.relu(x)
+
+        # layer 4
+        # latent_in here
+        x = torch.cat([x, input], 1)
+        x = self.lin4(x)
+        x = self.relu(x)
+
+        # layer 5
+        x = self.lin5(x)
+        x = self.relu(x)
+
+        # layer 6
+        x = self.lin6(x)
+        x = self.relu(x)
+
+        # layer 7
+        x = self.lin7(x)
+        x = self.relu(x)
+
+        # layer 8
+        # not relu here
+        x = self.lin8(x)
+        
+        # final tanh
+        x = self.th(x)
 
         return x
