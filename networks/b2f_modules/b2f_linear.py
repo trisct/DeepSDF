@@ -1,8 +1,12 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+
+import math
 
 class B2FLinear(nn.Module):
-    r"""Applies a linear transformation to the incoming data: :math:`y = xA^T + b`
+    r"""Applies a linear transformation to the incoming data: :math:`y = xA^T + b`.
+    Supports back propagation as b2f_forward.
 
     This module supports :ref:`TensorFloat32<tf32_on_ampere>`.
 
@@ -27,19 +31,11 @@ class B2FLinear(nn.Module):
                 If :attr:`bias` is ``True``, the values are initialized from
                 :math:`\mathcal{U}(-\sqrt{k}, \sqrt{k})` where
                 :math:`k = \frac{1}{\text{in\_features}}`
-
-    Examples::
-
-        >>> m = nn.Linear(20, 30)
-        >>> input = torch.randn(128, 20)
-        >>> output = m(input)
-        >>> print(output.size())
-        torch.Size([128, 30])
     """
     __constants__ = ['in_features', 'out_features']
     in_features: int
     out_features: int
-    weight: Tensor
+    weight: torch.Tensor
 
     def __init__(self, in_features: int, out_features: int, bias: bool = True) -> None:
         super(B2FLinear, self).__init__()
@@ -53,27 +49,27 @@ class B2FLinear(nn.Module):
         self.reset_parameters()
 
     def reset_parameters(self) -> None:
-        init.kaiming_uniform_(self.weight, a=math.sqrt(5))
+        nn.init.kaiming_uniform_(self.weight, a=math.sqrt(5))
         if self.bias is not None:
-            fan_in, _ = init._calculate_fan_in_and_fan_out(self.weight)
+            fan_in, _ = nn.init._calculate_fan_in_and_fan_out(self.weight)
             bound = 1 / math.sqrt(fan_in)
-            init.uniform_(self.bias, -bound, bound)
+            nn.init.uniform_(self.bias, -bound, bound)
 
-    def forward(self, input: Tensor) -> Tensor:
+    def forward(self, input: torch.Tensor) -> torch.Tensor:
         return F.linear(input, self.weight, self.bias)
 
-    def b2f_forward(self, saved_input, saved_output, grad_saved_output):
+    def b2f_forward(self, grad_saved_output):
         """
-        saved_input: the original input as the time of calling forward
-        saved_output: the original output as the time of calling forward
+        grad_saved_output: the gradient w.r.t. the original output as the time of calling forward
 
         This computes the grad w.r.t. saved_input. See https://pytorch.org/docs/stable/notes/extending.html
         """
 
         grad_saved_input = grad_saved_output.mm(self.weight)
+        return grad_saved_input
 
 
     def extra_repr(self) -> str:
-        return 'in_features={}, out_features={}, bias={}'.format(
+        return 'in_features={}, out_features={}, bias={}. B2F version'.format(
             self.in_features, self.out_features, self.bias is not None
         )
