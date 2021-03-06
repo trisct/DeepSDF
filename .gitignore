@@ -12,3 +12,4 @@ bin/
 build/
 bike_dataset_*/
 
+*.pth
