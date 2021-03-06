@@ -12,5 +12,8 @@ bin/
 build/
 bike_dataset_*/
 
+datasets_raw/
+datasets_processed/
+
 *.pth
 *.zip
