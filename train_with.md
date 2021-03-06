@@ -166,7 +166,7 @@ By default, this will plot the loss but other values can be shown using the `--t
 
 ### Continuing from a Saved Optimization State
 
-If training is interrupted, pass the `--continue` flag along with a epoch index to `train_deep_sdf.py` to continue from the saved state at that epoch. Note that the saved state needs to be present --- to check which checkpoints are available for a given experiment, check the `ModelParameters', 'OptimizerParameters', and 'LatentCodes' directories (all three are needed).
+If training is interrupted, pass the `--continue` flag along with a epoch index to `train_deep_sdf.py` to continue from the saved state at that epoch. Note that the saved state needs to be present --- to check which checkpoints are available for a given experiment, check the `ModelParameters`, `OptimizerParameters`, and `LatentCodes` directories (all three are needed).
 
 
 ### Shape Completion
