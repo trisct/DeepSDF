@@ -13,3 +13,4 @@ build/
 bike_dataset_*/
 
 *.pth
+*.zip
