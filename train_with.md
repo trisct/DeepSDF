@@ -77,7 +77,7 @@ datasets_processed/
 ### Preprocessing of data
 
 If you have prepared the above, do
-
+<span style="color:red"> PLEASE convert to `ply` format for preprocessing!</span>
 ```
 python preprocess_data_concurrent.py -d datasets_processed -s datasets_raw --split dataset_A.json
 ```
