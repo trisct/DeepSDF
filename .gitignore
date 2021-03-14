@@ -4,6 +4,7 @@ Reconstructions/
 ModelParameters/
 OptimizerParameters/
 NormalizationParameters/
+TrainingMeshes/
 SdfSamples/
 SurfaceSamples/
 LatentCodes/

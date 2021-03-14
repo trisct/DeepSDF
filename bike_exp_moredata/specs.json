@@ -1,6 +1,6 @@
 {
   "Description" : "This experiment learns a shape representation for bikes using custom data.",
-  "DataSource" : "data_processed_conc",
+  "DataSource" : "datasets_processed",
   "TrainSplit" : "bike_exp_moredata/train_split.json",
   "TestSplit" : "bike_exp_moredata/test_split.json",
   "NetworkArch" : "deep_sdf_decoder",
