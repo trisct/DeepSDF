@@ -146,6 +146,14 @@ if __name__ == "__main__":
         help="If set, the script will produce mesh surface samples for evaluation. "
         + "Otherwise, the script will produce SDF samples for training.",
     )
+    arg_parser.add_argument(
+        "--normal",
+        dest="normal_sampling",
+        default=False,
+        action="store_true",
+        help="If set, the script will produce mesh surface samples for evaluation. "
+        + "Otherwise, the script will produce SDF samples for training.",
+    )
 
     deep_sdf.add_common_args(arg_parser)
 
@@ -156,14 +164,14 @@ if __name__ == "__main__":
     additional_general_args = []
 
     deepsdf_dir = os.path.dirname(os.path.abspath(__file__))
-    if args.surface_sampling:
-        executable = os.path.join(deepsdf_dir, "bin/SampleVisibleMeshSurface")
-        subdir = ws.surface_samples_subdir
+    if args.normal_sampling:
+        args.surface_sampling = True
+        executable = os.path.join(deepsdf_dir, "bin/SampleVisibleSurfaceNormals")
+        subdir = ws.normal_samples_subdir
         extension = ".ply"
     else:
-        executable = os.path.join(deepsdf_dir, "bin/PreprocessMesh")
-        subdir = ws.sdf_samples_subdir
-        extension = ".npz"
+        print(f'Does not support mode other than normal sampling. Please specify --normal')
+        exit(0)
 
         if args.test_sampling:
             additional_general_args += ["-t"]
@@ -239,7 +247,7 @@ if __name__ == "__main__":
                     normalization_param_filename = os.path.join(
                         normalization_param_target_dir, instance_dir + ".npz"
                     )
-                    specific_args = ["-n", normalization_param_filename]
+                    specific_args = ["-n", normalization_param_filename, "-p", processed_filepath[:-4]+'_normal.ply']
 
                 meshes_targets_and_specific_args.append(
                     (

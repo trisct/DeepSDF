@@ -59,6 +59,7 @@ void SaveNormalizationParamsToNPZ(
 void SampleFromSurfaceInside(
     pangolin::Geometry& geom,
     std::vector<Eigen::Vector3f>& surfpts,
+    std::vector<Eigen::Vector3f>& surfnormals,
     int num_sample,
     KdVertexListTree& kdTree,
     std::vector<Eigen::Vector3f>& surface_vertices,
@@ -139,12 +140,14 @@ void SampleFromSurfaceInside(
       continue;
 
     surfpts.push_back(point);
+    surfnormals.push_back(cl_normal);
   }
 }
 
 int main(int argc, char** argv) {
   std::string meshFileName;
   std::string plyOutFile;
+  std::string plyNormalOutFile;
   std::string normalizationOutputFile;
   int num_sample = 30000;
 
@@ -152,6 +155,7 @@ int main(int argc, char** argv) {
   app.add_option("-m", meshFileName, "Mesh File Name for Reading")->required();
   app.add_option("-o", plyOutFile, "Save npy pc to here")->required();
   app.add_option("-n", normalizationOutputFile, "Save normalization");
+  app.add_option("-p", plyNormalOutFile, "Save npy pc to here");
   app.add_option("-s", num_sample, "Save ply pc to here");
 
   CLI11_PARSE(app, argc, argv);
@@ -317,11 +321,13 @@ int main(int argc, char** argv) {
 
   std::cout << "[HERE: In SampleVisibleMeshSurface, with mesh " << meshFileName << "] SampleFromSurfaceInside starts...\n";
   std::vector<Eigen::Vector3f> surf_pts;
-  SampleFromSurfaceInside(geom, surf_pts, num_sample, kdTree_surf, vertices2, normals2, 0.00001);
+  std::vector<Eigen::Vector3f> surf_normals;
+  SampleFromSurfaceInside(geom, surf_pts, surf_normals, num_sample, kdTree_surf, vertices2, normals2, 0.00001);
   std::cout << "[HERE: In SampleVisibleMeshSurface, with mesh " << meshFileName << "] SampleFromSurfaceInside done.\n";
 
   std::cout << "[HERE: In SampleVisibleMeshSurface, with mesh " << meshFileName << "] Saving to ply file...\n";
   SavePointsToPLY(surf_pts, plyOutFile);
+  SavePointsToPLY(surf_normals, plyNormalOutFile);
   std::cout << "[HERE: In SampleVisibleMeshSurface, with mesh " << meshFileName << "] Done saving to ply file.\n";
 
   

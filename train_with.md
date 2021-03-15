@@ -2,6 +2,16 @@
 
 [TOC]
 
+## Installation of Preprocessing Tool
+
+Install Pangolin, nanoflann, eigen and CLI11. Do
+```
+mkdir build
+cd build
+cmake -DCMAKE_CXX_STANDARD=17 ..
+make -j
+```
+
 ## Prepare Data
 
 You need the following files and folders to prepare the training data and start training.
