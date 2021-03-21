@@ -339,10 +339,10 @@ def main_function(experiment_directory, continue_from, batch_split):
     with open(train_split_file, "r") as f:
         train_split = json.load(f)
 
-    sdf_dataset = deep_sdf.data.SDFSamples(
-        data_source, train_split, num_samp_per_scene, load_ram=False
+    sdf_dataset = deep_sdf.data_normal.SDFSamplesWithNormals(
+        data_source, train_split, num_samp_per_scene
     )
-    print('[HERE: In train_deep_sdf.main_function] sdf_dataset len =', len(sdf_dataset))
+    # print('[HERE: In train_deep_sdf.main_function] sdf_dataset len =', len(sdf_dataset))
 
     num_data_loader_threads = get_spec_with_default(specs, "DataLoaderThreads", 1)
     logging.debug("loading data with {} threads".format(num_data_loader_threads))
@@ -354,7 +354,7 @@ def main_function(experiment_directory, continue_from, batch_split):
         num_workers=num_data_loader_threads,
         drop_last=True,
     )
-    print('[HERE: In train_deep_sdf.main_function] sdf_loader len =', len(sdf_loader))
+    # print('[HERE: In train_deep_sdf.main_function] sdf_loader len =', len(sdf_loader))
 
     logging.debug("torch num_threads: {}".format(torch.get_num_threads()))
 
@@ -377,7 +377,9 @@ def main_function(experiment_directory, continue_from, batch_split):
         )
     )
 
-    loss_l1 = torch.nn.L1Loss(reduction="sum")
+    # builing losses
+    L1_criterion = torch.nn.L1Loss(reduction="sum")
+    mse_criterion = torch.nn.MSELoss(reduction="sum")
 
     optimizer_all = torch.optim.Adam(
         [
@@ -451,62 +453,95 @@ def main_function(experiment_directory, continue_from, batch_split):
         )
     )
 
+    ### Initializing variables
+    pred_surf_grad = None
+
     for epoch in range(start_epoch, num_epochs + 1):
 
         start = time.time()
-
         logging.info("epoch {}...".format(epoch))
-
         decoder.train()
 
         adjust_learning_rate(lr_schedules, optimizer_all, epoch)
 
-        for sdf_data, indices in sdf_loader:
+        for sdf_data, surf_points, surf_normals, indices in sdf_loader:
             #print('[HERE: In train_deep_sdf.LOOPsdf_loader] indices =', indices)
 
             # Process the input data
-            sdf_data = sdf_data.reshape(-1, 4)
+
+            sdf_data = sdf_data.reshape(-1, 4) # [N_pts, 4]
+            # print(f'[In train_grad_superv] sdf_data.device = {sdf_data.device}')
+            surf_points = surf_points.reshape(-1, 3) # [N_pts, 1]
+            surf_normals = surf_normals.reshape(-1, 3) # [N_pts, 1]
+            # print(f'[In train_grad_superv] sdf_data.shape = {sdf_data.shape}')
+            # print(f'[In train_grad_superv] surf_points.shape = {surf_points.shape}')
+            # print(f'[In train_grad_superv] surf_normals.shape = {surf_normals.shape}')
 
             num_sdf_samples = sdf_data.shape[0]
+            num_surf_samples = surf_points.shape[0]
 
             sdf_data.requires_grad = False
 
             xyz = sdf_data[:, 0:3]
-            sdf_gt = sdf_data[:, 3].unsqueeze(1)
+            sdf_gt = sdf_data[:, 3:4]
 
             if enforce_minmax:
                 sdf_gt = torch.clamp(sdf_gt, minT, maxT)
 
+            ### chunking data (what is torch.chunk: splitting into chunks)
             xyz = torch.chunk(xyz, batch_split)
+            sdf_gt = torch.chunk(sdf_gt, batch_split)
+            surf_points = torch.chunk(surf_points, batch_split)
+            surf_normals = torch.chunk(surf_normals, batch_split)
             indices = torch.chunk(
                 indices.unsqueeze(-1).repeat(1, num_samp_per_scene).view(-1),
                 batch_split,
             )
 
-            sdf_gt = torch.chunk(sdf_gt, batch_split)
-
             batch_loss = 0.0
-
             optimizer_all.zero_grad()
 
             for i in range(batch_split):
                 #print('[HERE: In train_deep_sdf.LOOPbatch_split] i/batch_split = %d/%d'%(i, batch_split))
 
                 batch_vecs = lat_vecs(indices[i])
-
-                input = torch.cat([batch_vecs, xyz[i]], dim=1)
+                input = torch.cat([batch_vecs, xyz[i]], dim=1).cuda()
 
                 # NN optimization
-                print(f'[In train_grad_superv] Network forward is at line 500')
+                # print(f'[In train_grad_superv] Network forward is at line 500')
+                # print(f'[In train_grad_superv] input.device = {input.device}')
                 pred_sdf = decoder(input)
+                                
+                # print(f'[In train_grad_superv] input.shape = {input.shape}')
+                # print(f'[In train_grad_superv] pred_sdf.shape = {pred_sdf.shape}')
+                # print(f'[In train_grad_superv] sdf_gt[i].shape = {sdf_gt[i].shape}')
+                # print(f'[In train_grad_superv] num_sdf_samples = {num_sdf_samples}')
 
-                print(f'[In train_grad_superv] input.shape = {input.shape}, pred_sdf.shape = {pred_sdf.shape}, ' + 
-                      f'sdf_gt[i].shape = {sdf_gt[i].shape}, num_sdf_samples = {num_sdf_samples}')
-
+                
                 if enforce_minmax:
                     pred_sdf = torch.clamp(pred_sdf, minT, maxT)
 
-                chunk_loss = loss_l1(pred_sdf, sdf_gt[i].cuda()) / num_sdf_samples
+                chunk_loss_sdf = L1_criterion(pred_sdf, sdf_gt[i].cuda()) / num_sdf_samples
+                # print(f'[In train_grad_superv] pred_sdf.device = {pred_sdf.device}')
+                # print(f'[In train_grad_superv] sdf_gt[i].device = {sdf_gt[i].device}')
+
+                if specs["UseNormalLoss"]:
+                    # Another forward from surface samples
+                    input_surf = torch.cat([batch_vecs, surf_points[i]], dim=1).cuda()
+                    pred_surf = decoder(input_surf)
+                    #print(f'[In train_grad_superv] decoder.device = {decoder.device}')
+                    #print(f'[In train_grad_superv] input_surf.device = {input_surf.device}')
+
+                    if pred_surf_grad is None or pred_surf_grad.shape != pred_surf.shape:
+                        pred_surf_grad = torch.ones_like(pred_surf, device=pred_surf.device)
+                    
+                    grad_surf = torch.autograd.grad(outputs=pred_surf, inputs=input_surf, grad_outputs=pred_surf_grad, create_graph=True, retain_graph=True)
+                    grad_surf = grad_surf[0][:, -3:]
+                    #print(f'[In train_grad_superv] grad_surf.shape = {grad_surf.shape}')
+                    #print(f'[In train_grad_superv] grad_surf.device = {grad_surf.device}')
+                    #print(f'[In train_grad_superv] surf_normals.device = {surf_normals[i].device}')
+
+                    grad_surf_loss = mse_criterion(grad_surf, surf_normals[i].cuda()) / num_surf_samples
 
                 if do_code_regularization:
                     l2_size_loss = torch.sum(torch.norm(batch_vecs, dim=1))
@@ -514,11 +549,16 @@ def main_function(experiment_directory, continue_from, batch_split):
                         code_reg_lambda * min(1, epoch / 100) * l2_size_loss
                     ) / num_sdf_samples
 
-                    chunk_loss = chunk_loss + reg_loss.cuda()
+                    loss = chunk_loss_sdf + reg_loss.cuda()
+                else:
+                    loss = chunk_loss_sdf
 
-                chunk_loss.backward()
+                if specs["UseNormalLoss"]:
+                    loss = loss + grad_surf_loss
 
-                batch_loss += chunk_loss.item()
+                loss.backward()
+
+                batch_loss += loss.item()
 
             logging.debug("loss = {}".format(batch_loss))
             logging.info("loss = {}".format(batch_loss))
@@ -591,11 +631,12 @@ if __name__ == "__main__":
         + "subbatches. This allows for training with large effective batch "
         + "sizes in memory constrained environments.",
     )
+    arg_parser.add_argument("--gpu", type=str)
 
     deep_sdf.add_common_args(arg_parser)
 
     args = arg_parser.parse_args()
-
+    os.environ['CUDA_VISIBLE_DEVICES']=args.gpu
     deep_sdf.configure_logging(args)
 
     main_function(args.experiment_directory, args.continue_from, int(args.batch_split))

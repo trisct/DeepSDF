@@ -587,11 +587,12 @@ if __name__ == "__main__":
         + "subbatches. This allows for training with large effective batch "
         + "sizes in memory constrained environments.",
     )
+    arg_parser.add_argument("--gpu", type=str)
 
     deep_sdf.add_common_args(arg_parser)
 
     args = arg_parser.parse_args()
-
+    os.environ['CUDA_VISIBLE_DEVICES']=args.gpu
     deep_sdf.configure_logging(args)
 
     main_function(args.experiment_directory, args.continue_from, int(args.batch_split))

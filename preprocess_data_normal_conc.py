@@ -168,7 +168,7 @@ if __name__ == "__main__":
         args.surface_sampling = True
         executable = os.path.join(deepsdf_dir, "bin/SampleVisibleSurfaceNormals")
         subdir = ws.normal_samples_subdir
-        extension = ".ply"
+        extension = ".obj"
     else:
         print(f'Does not support mode other than normal sampling. Please specify --normal')
         exit(0)
@@ -247,7 +247,7 @@ if __name__ == "__main__":
                     normalization_param_filename = os.path.join(
                         normalization_param_target_dir, instance_dir + ".npz"
                     )
-                    specific_args = ["-n", normalization_param_filename, "-p", processed_filepath[:-4]+'_normal.ply']
+                    specific_args = ["-n", normalization_param_filename, "-p", processed_filepath[:-4] + '_normal.obj']
 
                 meshes_targets_and_specific_args.append(
                     (
