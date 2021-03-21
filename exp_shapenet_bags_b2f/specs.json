@@ -1,8 +1,8 @@
 {
-  "Description" : "This experiment learns a shape representation for bikes using custom data.",
+  "Description" : "This experiment learns a shape representation for chairs ",
   "DataSource" : "datasets_processed",
-  "TrainSplit" : "bike_exp_moredata/train_split.json",
-  "TestSplit" : "bike_exp_moredata/test_split.json",
+  "TrainSplit" : "datasets_raw/shapenet_watertight.json",
+  "TestSplit" : "datasets_raw/shapenet_watertight.json",
   "NetworkArch" : "deep_sdf_decoder",
   "NetworkSpecs" : {
     "dims" : [ 512, 512, 512, 512, 512, 512, 512, 512 ],
@@ -16,13 +16,13 @@
     "weight_norm" : true
     },
   "CodeLength" : 256,
-  "NumEpochs" : 100001,
+  "NumEpochs" : 2001,
   "SnapshotFrequency" : 1000,
   "AdditionalSnapshots" : [ 100, 500 ],
   "LearningRateSchedule" : [
     {
       "Type" : "Step",
-      "Initial" : 0.0005,
+      "Initial" : 5e-4,
       "Interval" : 500,
       "Factor" : 0.5
     },

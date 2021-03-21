@@ -6,7 +6,8 @@ pjoin = os.path.join
 
 def process_raw_dir(
         dataset_collection_folder,
-        dataset_name):
+        dataset_name,
+        suffixes=['.obj', '.ply']):
     
     classes = []
     dataset_structure_dict = { dataset_name: {} }
@@ -38,8 +39,8 @@ def process_raw_dir(
     
         for in_filename in files:
             #print('[HERE: In process_all] Checking if %s is OBJ format' % in_filename)
-            if '.obj' == in_filename[-4:]:
-                print(f'Found obj {in_filename}')
+            if in_filename[-4:] in suffixes:
+                print(f'Found {in_filename}')
                 dataset_structure_dict[dataset_name][class_name].append(instance_name)
 
     for class_name in classes:
@@ -121,12 +122,16 @@ def process_processed_dir(
     
 if __name__ == '__main__':
     
-    dataset_collection_folder = 'datasets_processed'
-    dataset_name = 'shapenetv1'
+    dataset_name = 'shapenet_watertight'
     json_filename = dataset_name + '.json'
-    types = ["SdfSamples", "NormalSamples"]
     
-    process_processed_dir(dataset_collection_folder, dataset_name, types)
+    
+    #dataset_collection_folder = 'datasets_processed'
+    #types = ["SdfSamples", "NormalSamples"]
+    #process_processed_dir(dataset_collection_folder, dataset_name, types)
+    
+    dataset_collection_folder = 'datasets_raw'
+    process_raw_dir(dataset_collection_folder, dataset_name)
 
 
     
