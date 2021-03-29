@@ -587,7 +587,7 @@ if __name__ == "__main__":
         + "subbatches. This allows for training with large effective batch "
         + "sizes in memory constrained environments.",
     )
-    arg_parser.add_argument("--gpu", type=str)
+    arg_parser.add_argument("--gpu", type=str, default="0")
 
     deep_sdf.add_common_args(arg_parser)
 

@@ -3,6 +3,7 @@
 
 import torch
 import torch.utils.data as data_utils
+import torch.nn.functional as F
 import signal
 import sys
 import os
@@ -498,7 +499,11 @@ def main_function(experiment_directory, continue_from, batch_split):
                 batch_split,
             )
 
-            batch_loss = 0.0
+            batch_loss_total = 0.0
+            batch_loss_sdf = 0.0
+            batch_loss_normal = 0.0
+            batch_loss_surf = 0.0
+            
             optimizer_all.zero_grad()
 
             for i in range(batch_split):
@@ -541,7 +546,11 @@ def main_function(experiment_directory, continue_from, batch_split):
                     #print(f'[In train_grad_superv] grad_surf.device = {grad_surf.device}')
                     #print(f'[In train_grad_superv] surf_normals.device = {surf_normals[i].device}')
 
-                    grad_surf_loss = mse_criterion(grad_surf, surf_normals[i].cuda()) / num_surf_samples
+                    grad_surf = F.normalize(grad_surf, dim=1)
+                    grad_surf_loss = mse_criterion(grad_surf, surf_normals[i].cuda()) / num_surf_samples * 0.03
+                    
+                    if specs["UseSurfLoss"]:
+                        zero_surf_loss = (pred_surf ** 2).mean() * 5e2
 
                 if do_code_regularization:
                     l2_size_loss = torch.sum(torch.norm(batch_vecs, dim=1))
@@ -555,15 +564,23 @@ def main_function(experiment_directory, continue_from, batch_split):
 
                 if specs["UseNormalLoss"]:
                     loss = loss + grad_surf_loss
+                    if specs["UseSurfLoss"]:
+                        loss = loss + zero_surf_loss
 
                 loss.backward()
 
-                batch_loss += loss.item()
+                batch_loss_total += loss.item()
+                batch_loss_sdf += chunk_loss_sdf.item()
+                if specs["UseNormalLoss"]:
+                    batch_loss_normal += grad_surf_loss.item()
+                    if specs["UseSurfLoss"]:
+                        batch_loss_surf += zero_surf_loss.item()
+                
 
-            logging.debug("loss = {}".format(batch_loss))
-            logging.info("loss = {}".format(batch_loss))
+            logging.debug(f"loss = {batch_loss_total:.8f}, loss_sdf = {batch_loss_sdf:.8f}, loss_normal = {batch_loss_normal:.8f}, loss_surf = {batch_loss_surf:.8f}")
+            logging.info(f"loss = {batch_loss_total:.8f}, loss_sdf = {batch_loss_sdf:.8f}, loss_normal = {batch_loss_normal:.8f}, loss_surf = {batch_loss_surf:.8f}")
 
-            loss_log.append(batch_loss)
+            loss_log.append(batch_loss_total)
 
             if grad_clip is not None:
 
@@ -631,7 +648,7 @@ if __name__ == "__main__":
         + "subbatches. This allows for training with large effective batch "
         + "sizes in memory constrained environments.",
     )
-    arg_parser.add_argument("--gpu", type=str)
+    arg_parser.add_argument("--gpu", type=str, default="0")
 
     deep_sdf.add_common_args(arg_parser)
 

@@ -1,5 +1,6 @@
 import os
 import json
+import argparse
 
 pjoin = os.path.join
 
@@ -120,18 +121,21 @@ def process_processed_dir(
     json_file_obj.close()
     
     
+parser = argparse.ArgumentParser()
+parser.add_argument('-s', '--source', type=str, help='data source folder', default='datasets_raw')
+parser.add_argument('-d', '--dataset', type=str, help='dataset name', required=True)
+
 if __name__ == '__main__':
     
-    dataset_name = 'simple_shapes'
+    args = parser.parse_args()
+
+    dataset_name = args.dataset
+    dataset_source_folder = args.source
     json_filename = dataset_name + '.json'
-    
     
     #dataset_collection_folder = 'datasets_processed'
     #types = ["SdfSamples", "NormalSamples"]
     #process_processed_dir(dataset_collection_folder, dataset_name, types)
     
-    dataset_collection_folder = 'datasets_raw'
-    process_raw_dir(dataset_collection_folder, dataset_name)
-
-
     
+    process_raw_dir(dataset_source_folder, dataset_name)

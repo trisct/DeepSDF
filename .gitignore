@@ -18,3 +18,5 @@ datasets_processed/
 
 *.pth
 *.zip
+
+exp_*/

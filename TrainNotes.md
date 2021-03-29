@@ -12,6 +12,28 @@ cmake -DCMAKE_CXX_STANDARD=17 ..
 make -j
 ```
 
+#### Known Issues
+
+##### 1. `mpark` not found
+
+Full error message is
+
+```
+In file included from /usr/local/include/pangolin/geometry/geometry.h:35,
+                 from /home/trisst/3dlab/DeepSDF/src/SampleVisibleSurfaceNormals.cpp:11:
+/usr/local/include/pangolin/compat/variant.h:10:13: fatal error: mpark/variant.hpp: No such file or directory
+   10 | #   include <mpark/variant.hpp>
+      |             ^~~~~~~~~~~~~~~~~~~
+compilation terminated.
+make[2]: *** [CMakeFiles/SampleVisibleSurfaceNormals.dir/build.make:63: CMakeFiles/SampleVisibleSurfaceNormals.dir/src/SampleVisibleSurfaceNormals.cpp.o] Error 1
+make[1]: *** [CMakeFiles/Makefile2:104: CMakeFiles/SampleVisibleSurfaceNormals.dir/all] Error 2
+make: *** [Makefile:130: all] Error 2
+```
+
+This is because you have not passed `-DCMAKE_CXX_STANDARD=17` to cmake. You can do this as above or specify in `CmakeLists.txt`.
+
+
+
 ## Prepare Data
 
 You need the following files and folders to prepare the training data and start training.
@@ -66,6 +88,14 @@ For example, for `dataset_A` above you would have a `json` file called `dataset_
 }
 ```
 
+If you don't have a `json` file already, you can generate one with
+
+```
+python generate_json_for_deepsdf.py -d dataset_A
+```
+
+The dataset source folder is defaulted to `datasets_raw`, but you can specify another with `-s/--split`.
+
 ### Processed dataset folder
 
 All processed datasets are put here. It should be an empty folder at first. Let's say it is called `datasets_processed`. After preprocessing (below), it will look like
@@ -92,7 +122,20 @@ If you have prepared the above, do
 python preprocess_data_concurrent.py -d datasets_processed -s datasets_raw --split dataset_A.json
 ```
 
+#### Known Issues
 
+##### 1. `what(): Not implemented.`
+
+Full error message is
+
+```
+terminate called after throwing an instance of 'std::runtime_error'
+  what():  Not implemented.
+```
+
+This is because the mesh file is of unsupported format for `pangolin:LoadGeometry`. Currently, ascii format ply files are unsupported but binary ply files are supported.
+
+### Dataset Inspection
 
 ## Training
 
@@ -109,6 +152,9 @@ Training only requires setting the experiment folder. Suppose the folder is call
 
 ```shell
 python train_deep_sdf.py -e deepsdf_exp
+# alternatively, you can do
+# python train_grad_superv.py -e deefpsdf_exp
+# to train with gradiet supervision
 ```
 
 The training process is recorded in the experiment folders. During training or after doing reconstructions (see below) several folders will be created under the experiment folder.
