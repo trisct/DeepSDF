@@ -25,6 +25,7 @@ extern pangolin::GlSlProgram GetShaderProgram();
 void SampleFromSurface(
     pangolin::Geometry& geom,               // the loaded geometry
     std::vector<Eigen::Vector3f>& surfpts,  // list of surface points to put sampled points in (currently empty)
+    std::vector<Eigen::Vector3f>& surfnml,  // list of surface normals to put sampled points in (currently empty)
     int num_sample) {
   float total_area = 0.0f;
 
@@ -71,6 +72,9 @@ void SampleFromSurface(
   std::mt19937 generator(seeder());
   std::uniform_real_distribution<float> rand_dist(0.0, total_area);
 
+  Eigen::Vector3f tmp_point;
+  Eigen::Vector3f tmp_normal;
+
   while ((int)surfpts.size() < num_sample) {
     float tri_sample = rand_dist(generator);
     std::vector<float>::iterator tri_index_iter =
@@ -80,112 +84,86 @@ void SampleFromSurface(
     // take a face with tri_index
     const Eigen::Vector3i& face = linearized_faces[tri_index];
 
-    // sample points from the face
-    surfpts.push_back(SamplePointFromTriangle(
+    // sample points and normals from the face
+    SamplePointAndNormalFromTriangle(
         Eigen::Map<Eigen::Vector3f>(vertices.RowPtr(face(0))),
         Eigen::Map<Eigen::Vector3f>(vertices.RowPtr(face(1))),
-        Eigen::Map<Eigen::Vector3f>(vertices.RowPtr(face(2)))));
+        Eigen::Map<Eigen::Vector3f>(vertices.RowPtr(face(2))),
+        tmp_point,
+        tmp_normal);
+    
+    surfpts.push_back(tmp_point);
+    surfnml.push_back(tmp_normal);
   }
 }
 
-void SampleSDFNearSurface(
+void SampleSurface(
     KdVertexListTree& kdTree,
     std::vector<Eigen::Vector3f>& vertices,     // resampled shell vertices
-    std::vector<Eigen::Vector3f>& xyz_surf,
     std::vector<Eigen::Vector3f>& normals,      // resampled shell normals, these normals should face the camera already
-    std::vector<Eigen::Vector3f>& xyz,
-    std::vector<float>& sdfs,
-    int num_rand_samples,
-    float variance,
-    float second_variance,
+    std::vector<Eigen::Vector3f>& xyz_surf,     // sampled points from the surface
+    std::vector<Eigen::Vector3f>& normal_surf,  // sampled normals from the surface
+    std::vector<Eigen::Vector3f>& xyz_final,    // final samples
+    std::vector<Eigen::Vector3f>& normal_final, // final normals
+    //std::vector<float>& sdfs,                 // no need for this as we do not need sdf anymore
+    int num_samples,
+    float variance,                             // this will be used to shift the surface point along the normal vector to determine whether it is an inward/outward normal
+    //float second_variance,                    // no need
     float bounding_cube_dim,
     int num_votes) {
   float stdv = sqrt(variance);
 
-  std::random_device seeder;
-  std::mt19937 generator(seeder());
-  std::uniform_real_distribution<float> rand_dist(0.0, 1.0);
-  std::vector<Eigen::Vector3f> xyz_used;
-  std::vector<Eigen::Vector3f> second_samples;
-
   std::random_device rd;
   std::mt19937 rng(rd());
-  std::uniform_int_distribution<int> vert_ind(0, vertices.size() - 1);
-  std::normal_distribution<float> perterb_norm(0, stdv);
-  std::normal_distribution<float> perterb_second(0, sqrt(second_variance));
+  //std::normal_distribution<float> perterb_norm(0, stdv);    // maybe not needed
 
   // near surface sampling
   // each point sampled on the surface 'surface_p' is added with 2 offsets
   // 'perterb_norm(rng)' and 'perterb_second(rng)'
   // these 2 offsets are sampled from different variances
   for (unsigned int i = 0; i < xyz_surf.size(); i++) {
-    Eigen::Vector3f surface_p = xyz_surf[i];
-    Eigen::Vector3f samp1 = surface_p;
-    Eigen::Vector3f samp2 = surface_p;
+    if (i % 100 == 0)
+      std::cout << "[In SampleSurface] Progress = " << float(i) / float(xyz_surf.size()) << std::endl;
+    Eigen::Vector3f surface_point = xyz_surf[i];
+    Eigen::Vector3f surface_normal = normal_surf[i];
 
-    for (int j = 0; j < 3; j++) {
-      samp1[j] += perterb_norm(rng);
-      samp2[j] += perterb_second(rng);
-    }
-
-    xyz.push_back(samp1);
-    xyz.push_back(samp2);
-  }
-
-  // space uniform sampling
-  for (int s = 0; s < (int)(num_rand_samples); s++) {
-    xyz.push_back(Eigen::Vector3f(
-        rand_dist(generator) * bounding_cube_dim - bounding_cube_dim / 2,
-        rand_dist(generator) * bounding_cube_dim - bounding_cube_dim / 2,
-        rand_dist(generator) * bounding_cube_dim - bounding_cube_dim / 2));
-  }
-
-  // now compute sdf for each xyz sample
-  for (int s = 0; s < (int)xyz.size(); s++) {
-    // for each sampled point in the 'xyz' list,
-    // find its closest point in the kdtree
-    Eigen::Vector3f samp_vert = xyz[s];
+    Eigen::Vector3f test_point;
+    
+    // getting a test point shifted from the surface point along the normal direction
+    // if the test point is inside, then the normal is inward, and will be turned outward
+    test_point = surface_point + stdv * surface_normal; 
+    
+    // starting to get the knn neighbors of test_point
     std::vector<int> cl_indices(num_votes);
     std::vector<float> cl_distances(num_votes);
-    kdTree.knnSearch(samp_vert.data(), num_votes, cl_indices.data(), cl_distances.data());
-
+    kdTree.knnSearch(test_point.data(), num_votes, cl_indices.data(), cl_distances.data());
+    
     int num_pos = 0;
-    float sdf;
 
     for (int ind = 0; ind < num_votes; ind++) {
       uint32_t cl_ind = cl_indices[ind];
       Eigen::Vector3f cl_vert = vertices[cl_ind];
-      Eigen::Vector3f ray_vec = samp_vert - cl_vert;
+      Eigen::Vector3f ray_vec = test_point - cl_vert;
       float ray_vec_leng = ray_vec.norm();
 
-      // only the sdf wrt the first one is used
-      if (ind == 0) {
-        // if close to the surface, use point plane distance
-        if (ray_vec_leng < stdv)
-          sdf = fabs(normals[cl_ind].dot(ray_vec));
-        else
-        // else, directly use the ray length
-          sdf = ray_vec_leng;
-      }
-
+      // voting, i.e.,
       // determining inside/outside for each voting neighbor
-      float d = normals[cl_ind].dot(ray_vec / ray_vec_leng);
+      Eigen::Vector3f eigen_v3f_eps(1e-12f, 1e-12f, 1e-12f);
+      float d = normals[cl_ind].dot(ray_vec / ray_vec_leng + eigen_v3f_eps);
       if (d > 0)
         num_pos++;
     }
-
-    // all or nothing , else ignore the point
+    // collect voting results
+    // all or nothing, else ignore the point
     // i.e. if all votes are the same, the sample is valid
     if ((num_pos == 0) || (num_pos == num_votes)) {
-      xyz_used.push_back(samp_vert);
-      if (num_pos <= (num_votes / 2)) {
-        sdf = -sdf;
+      if (num_pos == 0) {                   // meaning the test point is inside
+        surface_normal = -surface_normal;   // reversing the sign
       }
-      sdfs.push_back(sdf);
+      xyz_final.push_back(surface_point);
+      normal_final.push_back(surface_normal);
     }
   }
-
-  xyz = xyz_used;     // because xyz is storing candidate samples, while xyz_used stores voted samples
 }
 
 void writeSDFToNPY(
@@ -238,6 +216,24 @@ void writeSDFToNPZ(
     std::cout << "pos num: " << pos.size() / 4.0 << std::endl;
     std::cout << "neg num: " << neg.size() / 4.0 << std::endl;
   }
+}
+
+void writePointsToOBJ(
+  const std::vector<Eigen::Vector3f>& verts,
+  const std::string outputfile) {
+
+  const std::size_t num_verts = verts.size();
+  Eigen::Vector3f v;
+
+  std::ofstream objFile;
+  objFile.open(outputfile);
+
+  for (uint i = 0; i < num_verts; i++) {
+    v = verts[i];
+    objFile << "v " << v[0] << " " << v[1] << " " << v[2] << " " << "\n";
+  }
+
+  objFile.close();
 }
 
 void writeSDFToPLY(
@@ -301,6 +297,9 @@ int main(int argc, char** argv) {
   std::string npyFileName;
   std::string plyFileNameOut;
   std::string spatial_samples_npz;
+  std::string pointsFileNameOut;
+  std::string normalsFileNameOut;
+  
   bool save_ply = true;
   bool test_flag = false;
   float variance = 0.005;
@@ -312,30 +311,32 @@ int main(int argc, char** argv) {
   CLI::App app{"PreprocessMesh"};
   app.add_option("-m", meshFileName, "Mesh File Name for Reading")->required();
   app.add_flag("-v", vis, "enable visualization");
-  app.add_option("-o", npyFileName, "Save npy pc to here")->required();
+  app.add_option("-o", npyFileName, "Save npy pc to here");
   app.add_option("--ply", plyFileNameOut, "Save ply pc to here");
   app.add_option("-s", num_sample, "Save ply pc to here");
   app.add_option("--var", variance, "Set Variance");
   app.add_flag("--sply", save_ply, "save ply point cloud for visualization");
   app.add_flag("-t", test_flag, "test_flag");
   app.add_option("-n", spatial_samples_npz, "spatial samples from file");
+  app.add_option("--fn_points", pointsFileNameOut, "output filename for points");
+  app.add_option("--fn_normals", normalsFileNameOut, "output filename for normals");
 
   CLI11_PARSE(app, argc, argv);
 
   if (test_flag)
     variance = 0.05;
 
-  std::cout<< "[HERE: In PreprocessMesh, with mesh " << meshFileName << "] Starting...\n";
+  std::cout<< "[HERE: In SampleSurfaceWithNormals, with mesh " << meshFileName << "] Starting...\n";
   
   float second_variance = variance / 10;
-  std::cout << "[HERE: In PreprocessMesh, with mesh " << meshFileName << "] variance: " << variance << " second: " << second_variance << std::endl;
+  std::cout << "[HERE: In SampleSurfaceWithNormals, with mesh " << meshFileName << "] variance: " << variance << " second: " << second_variance << std::endl;
   if (test_flag) {
     second_variance = variance / 100;
     num_samp_near_surf_ratio = 45.0f / 50.0f;
     num_sample = 250000;
   }
 
-  std::cout << "[HERE: In PreprocessMesh, with mesh " << meshFileName << "] spatial_samples_npz" << spatial_samples_npz << std::endl;
+  std::cout << "[HERE: In SampleSurfaceWithNormals, with mesh " << meshFileName << "] spatial_samples_npz" << spatial_samples_npz << std::endl;
 
   glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
   glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
@@ -343,14 +344,14 @@ int main(int argc, char** argv) {
   glPixelStorei(GL_UNPACK_SKIP_ROWS, 0);
 
 
-  std::cout << "[HERE: In PreprocessMesh, with mesh " << meshFileName << "] Loading mesh with Pangolin...\n";
+  std::cout << "[HERE: In SampleSurfaceWithNormals, with mesh " << meshFileName << "] Loading mesh with Pangolin...\n";
   pangolin::Geometry geom = pangolin::LoadGeometry(meshFileName);
-  std::cout << "[HERE: In PreprocessMesh, with mesh " << meshFileName << "] Done loading mesh with Pangolin...\n";
+  std::cout << "[HERE: In SampleSurfaceWithNormals, with mesh " << meshFileName << "] Done loading mesh with Pangolin...\n";
 
-  std::cout << "[HERE: In PreprocessMesh, with mesh " << meshFileName << "] " << geom.objects.size() << " objects" << std::endl;
+  std::cout << "[HERE: In SampleSurfaceWithNormals, with mesh " << meshFileName << "] " << geom.objects.size() << " objects" << std::endl;
 
   // linearize the object indices
-  std::cout << "[HERE: In PreprocessMesh, with mesh " << meshFileName << "] Starting to linearize object indices...\n"; 
+  std::cout << "[HERE: In SampleSurfaceWithNormals, with mesh " << meshFileName << "] Starting to linearize object indices...\n"; 
   {
     int total_num_faces = 0;
 
@@ -395,12 +396,12 @@ int main(int argc, char** argv) {
     new_ibo = faces->second.UnsafeReinterpret<uint32_t>().SubImage(0, 0, 3, total_num_faces);
     faces->second.attributes["vertex_indices"] = new_ibo;
   }
-  std::cout << "[HERE: In PreprocessMesh, with mesh " << meshFileName << "] Linearizing indices done.\n"; 
+  std::cout << "[HERE: In SampleSurfaceWithNormals, with mesh " << meshFileName << "] Linearizing indices done.\n"; 
 
   // remove textures
-  std::cout << "[HERE: In PreprocessMesh, with mesh " << meshFileName << "] Starting to remove textures...\n"; 
+  std::cout << "[HERE: In SampleSurfaceWithNormals, with mesh " << meshFileName << "] Starting to remove textures...\n"; 
   geom.textures.clear();
-  std::cout << "[HERE: In PreprocessMesh, with mesh " << meshFileName << "] Removing textures done.\n"; 
+  std::cout << "[HERE: In SampleSurfaceWithNormals, with mesh " << meshFileName << "] Removing textures done.\n"; 
 
   pangolin::Image<uint32_t> modelFaces = pangolin::get<pangolin::Image<uint32_t>>(
       geom.objects.begin()->second.attributes["vertex_indices"]);
@@ -537,7 +538,7 @@ int main(int argc, char** argv) {
   float bad_tri_ratio = (float)(bad_tri) / float(num_tri);
 
   if (wrong_ratio > rejection_criteria_obs || bad_tri_ratio > rejection_criteria_tri) {
-    std::cout << "[HERE: In PreprocessMesh, with mesh " << meshFileName << "] " << "mesh rejected for too many wrong faces" << std::endl;
+    std::cout << "[HERE: In SampleSurfaceWithNormals, with mesh " << meshFileName << "] " << "mesh rejected for too many wrong faces" << std::endl;
     //    return 0;
   }
 
@@ -558,56 +559,70 @@ int main(int argc, char** argv) {
   KdVertexListTree kdTree_surf(3, kdVerts);
   kdTree_surf.buildIndex();
 
-  std::vector<Eigen::Vector3f> xyz;
-  std::vector<Eigen::Vector3f> xyz_surf;
+  std::vector<Eigen::Vector3f> xyz_surf;      // temporary surface samples
+  std::vector<Eigen::Vector3f> normal_surf;   // temporary surface normal samples, the normals are calculated as the normal of the triangle, whose in/out direction is determined later
+
+  std::vector<Eigen::Vector3f> xyz_final;     // point samples for final sampling
+  std::vector<Eigen::Vector3f> normal_final;  // normal samples for final sampling
+  
   std::vector<float> sdf;
-  int num_samp_near_surf = (int)(47 * num_sample / 50); // meaning that samp_near_surf takes 94%
+  //int num_samp_near_surf = num_sample;
 
+  std::cout << "[HERE: In SampleSurfaceWithNormals, with mesh " << meshFileName << "] " << "num_samp_near_surf: " << num_sample << std::endl;
+  std::cout << "[HERE: In SampleSurfaceWithNormals, with mesh " << meshFileName << "] SampleFromSurface starts...\n";
+  SampleFromSurface(geom, xyz_surf, normal_surf, num_sample);
+  std::cout << "[HERE: In SampleSurfaceWithNormals, with mesh " << meshFileName << "] SampleFromSurface ends...\n";
 
-  std::cout << "[HERE: In PreprocessMesh, with mesh " << meshFileName << "] " << "num_samp_near_surf: " << num_samp_near_surf << std::endl;
-  SampleFromSurface(geom, xyz_surf, num_samp_near_surf / 2);
-
-  std::cout << "[HERE: In PreprocessMesh, with mesh " << meshFileName << "] SampleSDFNearSurface starts...\n"; 
+  // No near surface samples now, the surface samples themselves will be used
+  std::cout << "[HERE: In SampleSurfaceWithNormals, with mesh " << meshFileName << "] SampleSurface starts...\n"; 
   auto start = std::chrono::high_resolution_clock::now();
-  SampleSDFNearSurface(
+
+  // the following reads from a list of surface samples (including points and normals)
+  // and determine the outward direction of the normals
+  SampleSurface(
       kdTree_surf,
       vertices2,
-      xyz_surf,
       normals2,
-      xyz,
-      sdf,
-      num_sample - num_samp_near_surf,        // number of random samples
+      xyz_surf,
+      normal_surf,
+      xyz_final,
+      normal_final,
+      num_sample,        // number of random samples
       variance,
-      second_variance,
       2,
       11);
 
   auto finish = std::chrono::high_resolution_clock::now();
   auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(finish - start).count();
-  std::cout << "[HERE: In PreprocessMesh, with mesh " << meshFileName << "] SampleSDFNearSurface ends with elapsed time: " << elapsed << std::endl;
-  std::cout << "[HERE: In PreprocessMesh, with mesh " << meshFileName << "] " << "num points sampled: " << xyz.size() << std::endl;
-   
+  std::cout << "[HERE: In SampleSurfaceWithNormals, with mesh " << meshFileName << "] SampleSurface ends with elapsed time: " << elapsed << std::endl;
+  std::cout << "[HERE: In SampleSurfaceWithNormals, with mesh " << meshFileName << "] " << "num points sampled: " << xyz_final.size() << std::endl;
+  std::cout << "[HERE: In SampleSurfaceWithNormals, with mesh " << meshFileName << "] " << "num normals sampled: " << normal_final.size() << std::endl;
+
+  // currently only saving as obj is supported
+  std::cout << "[HERE: In SampleSurfaceWithNormals, with mesh " << meshFileName << "] Writing to obj file...\n";
+  writePointsToOBJ(xyz_final, pointsFileNameOut);
+  writePointsToOBJ(normal_final, normalsFileNameOut);
+  std::cout << "[HERE: In SampleSurfaceWithNormals, with mesh " << meshFileName << "] Writing to obj done.\n";
+
+  /* Currently unsupported
   if (save_ply) {
-    std::cout << "[HERE: In PreprocessMesh, with mesh " << meshFileName << "] Writing to ply file...\n";
+    std::cout << "[HERE: In SampleSurfaceWithNormals, with mesh " << meshFileName << "] Writing to ply file...\n";
     writeSDFToPLY(xyz, sdf, plyFileNameOut, false, true);
-    std::cout << "[HERE: In PreprocessMesh, with mesh " << meshFileName << "] Writing to ply done.\n";
+    std::cout << "[HERE: In SampleSurfaceWithNormals, with mesh " << meshFileName << "] Writing to ply done.\n";
   }
 
-
-  
-  std::size_t save_npz = npyFileName.find("npz");
-
-   
+  std::size_t save_npz = npyFileName.find("npz");   
   if (save_npz == std::string::npos) {
-    std::cout << "[HERE: In PreprocessMesh, with mesh " << meshFileName << "] Writing to npy file...\n";
+    std::cout << "[HERE: In SampleSurfaceWithNormals, with mesh " << meshFileName << "] Writing to npy file...\n";
     writeSDFToNPY(xyz, sdf, npyFileName);
-    std::cout << "[HERE: In PreprocessMesh, with mesh " << meshFileName << "] Writing to npy file done.\n";
+    std::cout << "[HERE: In SampleSurfaceWithNormals, with mesh " << meshFileName << "] Writing to npy file done.\n";
   }
   else {
-    std::cout << "[HERE: In PreprocessMesh, with mesh " << meshFileName << "] Writing to npz file...\n";
+    std::cout << "[HERE: In SampleSurfaceWithNormals, with mesh " << meshFileName << "] Writing to npz file...\n";
     writeSDFToNPZ(xyz, sdf, npyFileName, true);
-    std::cout << "[HERE: In PreprocessMesh, with mesh " << meshFileName << "] Writing to npz file done.\n";
+    std::cout << "[HERE: In SampleSurfaceWithNormals, with mesh " << meshFileName << "] Writing to npz file done.\n";
   }
+  */
    
 
   return 0;

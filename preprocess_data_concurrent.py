@@ -53,6 +53,7 @@ def process_mesh(mesh_filepath, target_filepath, executable, additional_args):
     logging.info(mesh_filepath + " --> " + target_filepath)
     command = [executable, "-m", mesh_filepath, "-o", target_filepath] + additional_args
 
+    print(f'[In preprocess_data_concurrent] Submitted command {command}')
     subproc = subprocess.Popen(command, stdout=None)
     subproc.wait()
 

@@ -90,10 +90,38 @@ float TriangleArea(const Eigen::Vector3f& a, const Eigen::Vector3f& b, const Eig
   return 0.5f * ab.norm() * ac.norm() * sinTheta;
 }
 
+void SamplePointAndNormalFromTriangle(
+    const Eigen::Vector3f& a,
+    const Eigen::Vector3f& b,
+    const Eigen::Vector3f& c,
+    Eigen::Vector3f& sampled_point,
+    Eigen::Vector3f& sampled_normal
+    )
+{
+  // samples a point in the triangle with vertices a,b,c
+  // simultaneously get a normal from the point, that is also a normal of the triangle
+  std::random_device seeder;
+  std::mt19937 generator(seeder());
+  std::uniform_real_distribution<float> rand_dist(0.0, 1.0);
+
+  const float r1 = rand_dist(generator);
+  const float r2 = rand_dist(generator);
+
+  sampled_point = (
+      (1 - std::sqrt(r1)) * a
+       + std::sqrt(r1) * (1 - r2) * b
+       + r2 * std::sqrt(r1) * c);
+  
+  sampled_normal = (b - a).cross(c - a);
+  sampled_normal = sampled_normal / (sampled_normal.dot(sampled_normal) + 1e-12f);
+}
+
 Eigen::Vector3f SamplePointFromTriangle(
     const Eigen::Vector3f& a,
     const Eigen::Vector3f& b,
-    const Eigen::Vector3f& c) {
+    const Eigen::Vector3f& c)
+{
+  // samples a point in the triangle with vertices a,b,c
   std::random_device seeder;
   std::mt19937 generator(seeder());
   std::uniform_real_distribution<float> rand_dist(0.0, 1.0);

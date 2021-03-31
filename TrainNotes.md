@@ -34,7 +34,7 @@ This is because you have not passed `-DCMAKE_CXX_STANDARD=17` to cmake. You can 
 
 
 
-## Prepare Data
+## Prepare Data (Original)
 
 You need the following files and folders to prepare the training data and start training.
 
@@ -136,6 +136,16 @@ terminate called after throwing an instance of 'std::runtime_error'
 This is because the mesh file is of unsupported format for `pangolin:LoadGeometry`. Currently, ascii format ply files are unsupported but binary ply files are supported.
 
 ### Dataset Inspection
+
+## Prepare Data (with Normal Samples)
+
+Currently you can run an example with
+
+```
+/home/trisst/3dlab/DeepSDF/bin/SampleSurfaceAndNormals -m datasets_raw/simple_shapes/sphere/sphere_uv/sphere_uv_aalnormed.obj -o what --fn_points datasets_processed/SurfaceNormalSamples/sphere_points.obj --fn_normals datasets_processed/SurfaceNormalSamples/sphere_normals.obj
+```
+
+
 
 ## Training
 

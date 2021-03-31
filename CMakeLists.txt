@@ -18,6 +18,12 @@ target_link_libraries(PreprocessMesh PRIVATE CLI11::CLI11 pangolin cnpy Eigen3::
 target_compile_features(PreprocessMesh PRIVATE cxx_std_17)
 set_target_properties(PreprocessMesh PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/bin")
 
+add_executable(SampleSurfaceAndNormals src/SampleSurfaceAndNormals.cpp ${SOURCES})
+target_include_directories(SampleSurfaceAndNormals PRIVATE third-party/cnpy)
+target_link_libraries(SampleSurfaceAndNormals PRIVATE CLI11::CLI11 pangolin cnpy Eigen3::Eigen nanoflann::nanoflann)
+target_compile_features(SampleSurfaceAndNormals PRIVATE cxx_std_17)
+set_target_properties(SampleSurfaceAndNormals PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/bin")
+
 add_executable(SampleVisibleMeshSurface src/SampleVisibleMeshSurface.cpp ${SOURCES})
 target_include_directories(SampleVisibleMeshSurface PRIVATE third-party/cnpy)
 target_link_libraries(SampleVisibleMeshSurface PRIVATE CLI11::CLI11 pangolin cnpy Eigen3::Eigen nanoflann::nanoflann)
