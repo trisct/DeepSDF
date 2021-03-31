@@ -36,7 +36,7 @@ def setup_scene_and_renderer(mode):
         print(f'Unsupported mode {mode}')
         return
 
-    return scece, renderer
+    return scene, renderer
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-i', '--input', nargs='+')

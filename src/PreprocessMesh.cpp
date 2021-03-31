@@ -20,9 +20,11 @@
 
 extern pangolin::GlSlProgram GetShaderProgram();
 
+// Determine the points which are on the surface
+// no normal is involved
 void SampleFromSurface(
-    pangolin::Geometry& geom,
-    std::vector<Eigen::Vector3f>& surfpts,
+    pangolin::Geometry& geom,               // the loaded geometry
+    std::vector<Eigen::Vector3f>& surfpts,  // list of surface points to put sampled points in (currently empty)
     int num_sample) {
   float total_area = 0.0f;
 
@@ -75,8 +77,10 @@ void SampleFromSurface(
         lower_bound(cdf_by_area.begin(), cdf_by_area.end(), tri_sample);
     int tri_index = tri_index_iter - cdf_by_area.begin();
 
+    // take a face with tri_index
     const Eigen::Vector3i& face = linearized_faces[tri_index];
 
+    // sample points from the face
     surfpts.push_back(SamplePointFromTriangle(
         Eigen::Map<Eigen::Vector3f>(vertices.RowPtr(face(0))),
         Eigen::Map<Eigen::Vector3f>(vertices.RowPtr(face(1))),
@@ -110,6 +114,7 @@ void SampleSDFNearSurface(
   std::normal_distribution<float> perterb_norm(0, stdv);
   std::normal_distribution<float> perterb_second(0, sqrt(second_variance));
 
+  // near surface sampling
   for (unsigned int i = 0; i < xyz_surf.size(); i++) {
     Eigen::Vector3f surface_p = xyz_surf[i];
     Eigen::Vector3f samp1 = surface_p;
@@ -124,6 +129,7 @@ void SampleSDFNearSurface(
     xyz.push_back(samp2);
   }
 
+  // space uniform sampling
   for (int s = 0; s < (int)(num_rand_samples); s++) {
     xyz.push_back(Eigen::Vector3f(
         rand_dist(generator) * bounding_cube_dim - bounding_cube_dim / 2,
@@ -489,6 +495,12 @@ int main(int argc, char** argv) {
 
     framebuffer.Unbind();
 
+    // it seems that this part is to reput the sampled VALID normals and points into the list
+    // resulting vectors are 
+    // std::vector<Eigen::Vector4f> point_normals;
+    // and
+    // std::vector<Eigen::Vector4f> point_verts;
+    // Q: Why are they 4f?
     pangolin::TypedImage img_normals;
     normals.Download(img_normals);
     std::vector<Eigen::Vector4f> im_norms = ValidPointsAndTrisFromIm(
