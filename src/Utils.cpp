@@ -113,7 +113,7 @@ void SamplePointAndNormalFromTriangle(
        + r2 * std::sqrt(r1) * c);
   
   sampled_normal = (b - a).cross(c - a);
-  sampled_normal = sampled_normal / (sampled_normal.dot(sampled_normal) + 1e-12f);
+  sampled_normal = sampled_normal / (sampled_normal.norm() + 1e-12f);
 }
 
 Eigen::Vector3f SamplePointFromTriangle(

@@ -122,7 +122,7 @@ void SampleSurface(
   // 'perterb_norm(rng)' and 'perterb_second(rng)'
   // these 2 offsets are sampled from different variances
   for (unsigned int i = 0; i < xyz_surf.size(); i++) {
-    if (i % 100 == 0)
+    if (i % 1000 == 0)
       std::cout << "[In SampleSurface] Progress = " << float(i) / float(xyz_surf.size()) << std::endl;
     Eigen::Vector3f surface_point = xyz_surf[i];
     Eigen::Vector3f surface_normal = normal_surf[i];
@@ -303,7 +303,7 @@ int main(int argc, char** argv) {
   bool save_ply = true;
   bool test_flag = false;
   float variance = 0.005;
-  int num_sample = 500000;
+  int num_sample = 500000 / 2;
   float rejection_criteria_obs = 0.02f;
   float rejection_criteria_tri = 0.03f;
   float num_samp_near_surf_ratio = 47.0f / 50.0f;
