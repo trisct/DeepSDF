@@ -5,7 +5,7 @@ import pyrender
 import open3d as o3d
 import trimesh
 
-def get_normal_line_set(points, normals, length=.1):
+def get_normal_line_set(points, normals, length=.005):
     normals_end = points + normals * length
     points_normals = np.concatenate([points, normals_end], axis=0)
     

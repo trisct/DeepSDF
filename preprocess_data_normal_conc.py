@@ -50,8 +50,13 @@ def filter_classes(patterns, classes):
 
 
 def process_mesh(mesh_filepath, target_filepath, executable, additional_args):
+    target_filepath_points = target_filepath[:-4] + '_points.obj'
+    target_filepath_normals = target_filepath[:-4] + '_normals.obj'
+    
     logging.info(mesh_filepath + " --> " + target_filepath)
-    command = [executable, "-m", mesh_filepath, "-o", target_filepath] + additional_args
+    command = [executable, "-m", mesh_filepath,
+                           "--fn_points", target_filepath_points,
+                           "--fn_normals", target_filepath_normals]
 
     subproc = subprocess.Popen(command, stdout=None)
     subproc.wait()
@@ -165,8 +170,8 @@ if __name__ == "__main__":
 
     deepsdf_dir = os.path.dirname(os.path.abspath(__file__))
     if args.normal_sampling:
-        args.surface_sampling = True
-        executable = os.path.join(deepsdf_dir, "bin/SampleVisibleSurfaceNormals")
+        args.surface_sampling = False
+        executable = os.path.join(deepsdf_dir, "bin/SampleSurfaceAndNormals")
         subdir = ws.normal_samples_subdir
         extension = ".obj"
     else:

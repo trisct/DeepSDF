@@ -107,12 +107,11 @@ void SampleSurface(
     std::vector<Eigen::Vector3f>& normal_final, // final normals
     //std::vector<float>& sdfs,                 // no need for this as we do not need sdf anymore
     int num_samples,
-    float variance,                             // this will be used to shift the surface point along the normal vector to determine whether it is an inward/outward normal
+    float stdv,                             // this will be used to shift the surface point along the normal vector to determine whether it is an inward/outward normal
     //float second_variance,                    // no need
     float bounding_cube_dim,
     int num_votes) {
-  float stdv = sqrt(variance);
-
+  
   std::random_device rd;
   std::mt19937 rng(rd());
   //std::normal_distribution<float> perterb_norm(0, stdv);    // maybe not needed
@@ -122,8 +121,8 @@ void SampleSurface(
   // 'perterb_norm(rng)' and 'perterb_second(rng)'
   // these 2 offsets are sampled from different variances
   for (unsigned int i = 0; i < xyz_surf.size(); i++) {
-    if (i % 1000 == 0)
-      std::cout << "[In SampleSurface] Progress = " << float(i) / float(xyz_surf.size()) << std::endl;
+    //if (i % 1000 == 0)
+      //std::cout << "[In SampleSurface] Progress = " << float(i) / float(xyz_surf.size()) << std::endl;
     Eigen::Vector3f surface_point = xyz_surf[i];
     Eigen::Vector3f surface_normal = normal_surf[i];
 
@@ -131,7 +130,7 @@ void SampleSurface(
     
     // getting a test point shifted from the surface point along the normal direction
     // if the test point is inside, then the normal is inward, and will be turned outward
-    test_point = surface_point + stdv * surface_normal; 
+    test_point = surface_point + stdv * surface_normal / surface_normal.norm(); 
     
     // starting to get the knn neighbors of test_point
     std::vector<int> cl_indices(num_votes);
@@ -139,12 +138,23 @@ void SampleSurface(
     kdTree.knnSearch(test_point.data(), num_votes, cl_indices.data(), cl_distances.data());
     
     int num_pos = 0;
+    float sdf;
 
     for (int ind = 0; ind < num_votes; ind++) {
       uint32_t cl_ind = cl_indices[ind];
       Eigen::Vector3f cl_vert = vertices[cl_ind];
       Eigen::Vector3f ray_vec = test_point - cl_vert;
       float ray_vec_leng = ray_vec.norm();
+
+      // only the sdf wrt the first one is used
+      if (ind == 0) {
+        // if close to the surface, use point plane distance
+        if (ray_vec_leng < stdv)
+          sdf = fabs(normals[cl_ind].dot(ray_vec));
+        else
+        // else, directly use the ray length
+          sdf = ray_vec_leng;
+      }
 
       // voting, i.e.,
       // determining inside/outside for each voting neighbor
@@ -160,8 +170,12 @@ void SampleSurface(
       if (num_pos == 0) {                   // meaning the test point is inside
         surface_normal = -surface_normal;   // reversing the sign
       }
-      xyz_final.push_back(surface_point);
-      normal_final.push_back(surface_normal);
+
+      // only save as a surface sample if it is sufficiently close to the surface
+      //if (sdf >= -stdv && sdf <= stdv) {
+        xyz_final.push_back(surface_point);
+        normal_final.push_back(surface_normal);
+      //}
     }
   }
 }
@@ -302,7 +316,7 @@ int main(int argc, char** argv) {
   
   bool save_ply = true;
   bool test_flag = false;
-  float variance = 0.005;
+  float variance = 0.01;
   int num_sample = 500000 / 2;
   float rejection_criteria_obs = 0.02f;
   float rejection_criteria_tri = 0.03f;
